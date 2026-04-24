@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
 """
 ====================================================================================================
-     ORANGE CARRIER LIVE RANGE MONITOR BOT - FULL WORKING VERSION
-====================================================================================================
-এই বটটি:
-- Playwright দিয়ে রিয়েল Orange Carrier ওয়েবসাইট থেকে ডাটা নেয়
-- প্রতি 60 সেকেন্ডে অটো আপডেট
-- 2min, 5min, 10min, 2hours রিপোর্ট
-- কান্ট্রি সামারি
-- CLI কাউন্ট প্রতি রেঞ্জে
-- সিঙ্গেল সার্চ (CLI বা দেশ)
-- রেঞ্জ কপি করার সুবিধা
+     ORANGE CARRIER LIVE RANGE MONITOR BOT - COMPLETE WORKING VERSION
 ====================================================================================================
 """
 
@@ -42,7 +33,6 @@ ORANGE_PASSWORD = 'Abcd1234'
 LOGIN_URL = 'https://www.orangecarrier.com/login'
 CLI_ACCESS_URL = 'https://www.orangecarrier.com/services/cli/access'
 
-# CLI LIST
 CLI_LIST = [
     '5731', '5730', '5732', '1315', '1646', '4983', '3375', '4473', '9989',
     '3598', '9891', '2917', '3706', '9890', '3737', '9891', '9893', '4857',
@@ -79,8 +69,8 @@ browser: Optional[Browser] = None
 page: Optional[Page] = None
 application: Optional[Application] = None
 
-range_data: Dict[str, List[datetime]] = {}  # range_name -> list of hit timestamps
-range_cli_sources: Dict[str, Dict[str, int]] = {}  # range_name -> {cli: count}
+range_data: Dict[str, List[datetime]] = {}
+range_cli_sources: Dict[str, Dict[str, int]] = {}
 reports: Dict[str, Dict] = {}
 last_data_collection: Optional[datetime] = None
 next_collection: Optional[datetime] = None
@@ -197,10 +187,6 @@ def parse_time_string(txt: str) -> Optional[int]:
         return int(match.group(1)) * 3600
     return None
 
-
-# ====================================================================================================
-# BROWSER FUNCTIONS
-# ====================================================================================================
 
 async def close_popups():
     try:
@@ -350,7 +336,6 @@ async def collect_all_data():
             
             await asyncio.sleep(0.3)
         
-        # Update data structures
         for rng, hit_time, cli in new_hits:
             if rng not in range_data:
                 range_data[rng] = []
@@ -358,7 +343,6 @@ async def collect_all_data():
             range_data[rng].append(hit_time)
             range_cli_sources[rng][cli] = range_cli_sources[rng].get(cli, 0) + 1
         
-        # Clean old data (keep last 2 hours)
         cutoff = now - timedelta(seconds=7200)
         for rng in list(range_data.keys()):
             range_data[rng] = [ts for ts in range_data[rng] if ts > cutoff]
@@ -370,7 +354,6 @@ async def collect_all_data():
         last_data_collection = now
         next_collection = now + timedelta(seconds=UPDATE_INTERVAL)
         
-        # Update reports
         update_reports()
         
         duration = (datetime.now() - start).total_seconds()
@@ -488,10 +471,6 @@ def get_report_for_window(window_name: str) -> str:
     return report
 
 
-# ====================================================================================================
-# SINGLE SEARCH FUNCTION
-# ====================================================================================================
-
 async def single_search_cli(query: str, window_seconds: int, window_name: str) -> str:
     if not last_data_collection:
         return "⏳ Data collection in progress, please wait..."
@@ -545,10 +524,6 @@ async def single_search_cli(query: str, window_seconds: int, window_name: str) -
     return report
 
 
-# ====================================================================================================
-# STATISTICS & HELP
-# ====================================================================================================
-
 def get_statistics() -> str:
     cd = get_countdown()
     now = datetime.now()
@@ -600,15 +575,11 @@ def get_help_text() -> str:
         f"📌 SINGLE SEARCH GUIDE:\n"
         f"1. Click SINGLE SEARCH\n"
         f"2. Send CLI number (e.g., 5731) or Country name (e.g., CAMBODIA)\n"
-        f"3. Get results with country summary\n\n"
+        f"3. Select 5 MIN RESULT or 2 HOURS RESULT\n\n"
         f"🤖 Status: 🟢 Online\n"
         f"🔄 Update Interval: Every 60 seconds"
     )
 
-
-# ====================================================================================================
-# TELEGRAM MENUS
-# ====================================================================================================
 
 def get_main_menu():
     keyboard = [
@@ -639,28 +610,9 @@ def get_admin_menu():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-async def send_msg(text: str, markup=None, chat_id: str = None):
-    global application
-    target = chat_id if chat_id else ADMIN_ID
-    try:
-        if application and application.bot:
-            await application.bot.send_message(
-                chat_id=target,
-                text=text,
-                parse_mode='Markdown',
-                reply_markup=markup
-            )
-    except Exception as e:
-        log_msg(f"Send error: {e}")
-
-
 def is_admin(user_id: str) -> bool:
     return user_id == ADMIN_ID
 
-
-# ====================================================================================================
-# AUTO UPDATE LOOP
-# ====================================================================================================
 
 async def auto_collection_loop():
     global is_running
@@ -674,13 +626,9 @@ async def auto_collection_loop():
             log_msg(f"Auto error: {e}", "ERROR")
 
 
-# ====================================================================================================
-# COMMAND HANDLERS
-# ====================================================================================================
-
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name or "User"
-    welcome_msg = (
+    await update.message.reply_text(
         f"🎉 WELCOME {user_name} TO ORANGE CLI BOT! 🎉\n\n"
         f"🤖 Live CLI Range Monitor Bot\n\n"
         f"📌 FEATURES:\n"
@@ -688,11 +636,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Time windows: 2m, 5m, 10m, 2h\n"
         f"• Country summary with hit counts\n"
         f"• CLI count per range\n"
-        f"• Single search (CLI or Country)\n"
         f"• Tap any range name to copy\n\n"
-        f"👇 Use the buttons below!"
+        f"👇 Use the buttons below!",
+        reply_markup=get_main_menu()
     )
-    await update.message.reply_text(welcome_msg, reply_markup=get_main_menu())
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -701,7 +648,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = str(update.effective_user.id)
     
-    # Awaiting search query
     if context.user_data.get('awaiting_search'):
         context.user_data['awaiting_search'] = False
         query = text.strip()
@@ -712,7 +658,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Awaiting add CLI
     if context.user_data.get('awaiting_add'):
         context.user_data['awaiting_add'] = False
         if is_admin(user_id):
@@ -725,7 +670,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"⚠️ CLI {text} already exists!", reply_markup=get_admin_menu())
         return
     
-    # Awaiting remove CLI
     if context.user_data.get('awaiting_remove'):
         context.user_data['awaiting_remove'] = False
         if is_admin(user_id):
@@ -738,7 +682,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(f"⚠️ CLI {text} not found!", reply_markup=get_admin_menu())
         return
     
-    # MAIN MENU BUTTONS
     if text == "🟢 ACTIVE RANGE (2 MIN)":
         await update.message.reply_text("⏳ Fetching 2 minutes report...")
         await update.message.reply_text(get_report_for_window('2min'), parse_mode='Markdown', reply_markup=get_main_menu())
@@ -760,10 +703,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "📝 Send a CLI number OR Country name\n\n"
             "Examples:\n"
-            "• CLI: `5731`\n"
-            "• Country: `CAMBODIA`\n\n"
+            "• CLI: 5731\n"
+            "• Country: CAMBODIA\n\n"
             "After sending, select result type.",
-            parse_mode='Markdown',
             reply_markup=get_main_menu()
         )
     
@@ -782,7 +724,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "🔙 BACK TO MAIN":
         await update.message.reply_text("Main Menu:", reply_markup=get_main_menu())
     
-    # SEARCH RESULT BUTTONS
     elif text.startswith("📊 5 MIN RESULT - "):
         query = text.replace("📊 5 MIN RESULT - ", "").strip()
         await update.message.reply_text(f"⏳ Fetching 5 minutes result for {query}...")
@@ -795,7 +736,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result = await single_search_cli(query, 7200, "LAST 2 HOURS")
         await update.message.reply_text(result, parse_mode='Markdown', reply_markup=get_search_menu(query))
     
-    # ADMIN BUTTONS
     elif text == "🔄 FORCE UPDATE":
         if is_admin(user_id):
             await update.message.reply_text("🔄 Force updating data...")
@@ -807,14 +747,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "➕ ADD CLI":
         if is_admin(user_id):
             context.user_data['awaiting_add'] = True
-            await update.message.reply_text("Send CLI number to add:\n\nExample: `5731`", parse_mode='Markdown', reply_markup=get_admin_menu())
+            await update.message.reply_text("Send CLI number to add:\n\nExample: 5731", reply_markup=get_admin_menu())
         else:
             await update.message.reply_text("⛔ Admin only!")
     
     elif text == "➖ REMOVE CLI":
         if is_admin(user_id):
             context.user_data['awaiting_remove'] = True
-            await update.message.reply_text("Send CLI number to remove:\n\nExample: `5731`", parse_mode='Markdown', reply_markup=get_admin_menu())
+            await update.message.reply_text("Send CLI number to remove:\n\nExample: 5731", reply_markup=get_admin_menu())
         else:
             await update.message.reply_text("⛔ Admin only!")
     
@@ -828,10 +768,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Please use the buttons below 👇\n\nType /start to see the menu.", reply_markup=get_main_menu())
 
 
-# ====================================================================================================
-# BROWSER SETUP
-# ====================================================================================================
-
 async def init_browser():
     global playwright, browser, page
     
@@ -840,26 +776,15 @@ async def init_browser():
     playwright = await async_playwright().start()
     browser = await playwright.chromium.launch(
         headless=True,
-        args=[
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage'
-        ]
+        args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     )
     
-    context = await browser.new_context(
-        viewport={'width': 1280, 'height': 720},
-        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    )
+    context = await browser.new_context(viewport={'width': 1280, 'height': 720})
     page = await context.new_page()
     
     log_msg("✅ Browser started")
     return True
 
-
-# ====================================================================================================
-# MAIN FUNCTION
-# ====================================================================================================
 
 async def main():
     global application, is_running
@@ -873,16 +798,13 @@ async def main():
     print(f"🔄 Data collection: Every {UPDATE_INTERVAL} seconds")
     print("=" * 70 + "\n")
     
-    # Load data
     load_data()
     load_cli_list()
     
-    # Browser
     if not await init_browser():
         log_msg("Browser failed!", "ERROR")
         return
     
-    # Login
     login_ok = False
     for i in range(3):
         log_msg(f"Login {i+1}/3...")
@@ -897,23 +819,17 @@ async def main():
     
     log_msg("✅ Ready!")
     
-    # Telegram bot
     application = Application.builder().token(BOT_TOKEN).build()
-    
     application.add_handler(CommandHandler("start", cmd_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    await application.bot.set_my_commands([
-        BotCommand("start", "Show main menu")
-    ])
-    
+    await application.bot.set_my_commands([BotCommand("start", "Show main menu")])
     await application.initialize()
     await application.start()
     await application.updater.start_polling()
     
     log_msg("✅ Telegram bot ONLINE!")
     
-    # Start auto collection
     asyncio.create_task(auto_collection_loop())
     
     try:
